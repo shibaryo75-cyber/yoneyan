@@ -1,0 +1,262 @@
+<!DOCTYPE html><html lang="ja"><head>
+    <meta charset="UTF-8">
+    <title>水溶液たんてい・じっくり学習版</title>
+    <style>
+        body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            text-align: center; 
+            background-image: url('https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&q=80&w=2070');
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+            padding: 10px; color: #333; font-size: 24px; 
+        }
+
+        #game-container { 
+            background: rgba(255, 255, 255, 0.95);
+            max-width: 850px; margin: 0 auto; padding: 30px; 
+            border-radius: 40px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); 
+            position: relative; min-height: 800px; 
+        }
+        
+        .header-info { display: flex; justify-content: space-between; align-items: center; background: #ecf0f1; padding: 15px 30px; border-radius: 20px; margin-bottom: 20px; border: 2px solid #bdc3c7; }
+        .timer { font-size: 36px; font-weight: bold; color: #e74c3c; }
+        .score { font-size: 32px; color: #2980b9; }
+
+        .quit-btn { background: #95a5a6; color: white; padding: 10px 20px; border-radius: 10px; font-size: 18px; cursor: pointer; border: none; }
+
+        #char-area { display: flex; align-items: center; background: #e8f5e9; padding: 20px; border-radius: 20px; margin-bottom: 20px; border: 4px solid #a5d6a7; min-height: 120px; }
+        #char-icon { font-size: 80px; margin-right: 20px; }
+        #char-msg { font-size: 26px; text-align: left; font-weight: 900; color: #1b5e20; line-height: 1.4; }
+
+        #visual-box { height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 4px dashed #bdc3c7; margin-bottom: 20px; border-radius: 25px; background: rgba(255, 255, 255, 0.8); position: relative; }
+        #visual-result { font-size: 32px; font-weight: bold; margin-top: 10px; }
+        
+        /* 正解・第〇問ドカン！演出 */
+        #flash-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 120px; font-weight: bold; text-shadow: 0 0 30px #fff;
+            display: none; z-index: 150; white-space: nowrap; pointer-events: none;
+        }
+        .flash-correct { color: #ff4757; text-shadow: 0 0 30px #fff, 0 0 10px #ff4757; }
+        .flash-next { color: #3498db; text-shadow: 0 0 30px #fff, 0 0 10px #3498db; font-size: 100px; }
+
+        .litmus-pair { display: flex; gap: 50px; }
+        .paper-set { display: flex; flex-direction: column; align-items: center; }
+        .litmus-paper { width: 80px; height: 160px; border: 3px solid #555; border-radius: 4px; }
+        .paper-label { font-size: 18px; margin-top: 8px; font-weight: bold; color: #666; }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        button { padding: 20px; cursor: pointer; border-radius: 20px; border: none; font-size: 26px; font-weight: bold; transition: 0.2s; box-shadow: 0 6px 0 #d4ac0d; }
+        .action-btn { background: #f1c40f; color: #2c3e50; }
+        .action-btn:active { transform: translateY(6px); box-shadow: none; }
+        
+        .ans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .ans-btn { background: #3498db; color: white; font-size: 26px; box-shadow: 0 6px 0 #21618c; }
+
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(44, 62, 80, 0.98); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 40px; z-index: 100; padding: 20px; }
+        .lv-btn { margin: 15px; width: 500px; padding: 30px; font-size: 32px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; border: none; }
+        
+        #certificate { 
+            display: none; position: absolute; top: 5%; left: 5%; width: 90%; height: 90%; 
+            background: #fdf5e6; color: #5d4037; border: 15px double #d4af37; border-radius: 10px;
+            padding: 40px; box-sizing: border-box; flex-direction: column; align-items: center; z-index: 200;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+    </style></head><body>
+
+<audio id="sound-correct" src="https://actions.google.com/sounds/v1/cartoon/trumpet_ding.ogg"></audio>
+<audio id="sound-wrong" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+
+<div id="game-container">
+    <div id="flash-message"></div>
+
+    <div id="overlay">
+        <h1 id="overlay-title" style="font-size: 60px; margin-bottom: 10px;">🔍 水溶液たんてい</h1>
+        <p id="overlay-msg" style="font-size: 28px; margin-bottom: 30px;">じっくり考えて10問せいかいを目指そう！</p>
+        <div id="menu-btns">
+            <button class="lv-btn" style="background:#2ecc71" onclick="startGame(1)">【初級】300秒で10問</button><br>
+            <button class="lv-btn" style="background:#f39c12" onclick="startGame(2)">【中級】240秒で10問</button><br>
+            <button class="lv-btn" style="background:#e74c3c" onclick="startGame(3)">【上級】180秒で10問</button>
+        </div>
+    </div>
+
+    <div id="certificate">
+        <h1 style="font-size: 50px; color: #d4af37; margin-bottom: 10px;">🏆 表彰状</h1>
+        <p style="font-size: 40px; font-weight: bold;">水溶液たんてい 殿</p>
+        <div style="font-size: 28px; text-align: left; line-height: 1.8; margin: 30px 0;">
+            あなたは「水溶液たんてい」において、自分の力でじっくりと考え、10問の難問をすべて解き明かしました。<br>
+            その努力と 素晴らしい観察力をたたえ ここに表彰します。
+        </div>
+        <p style="font-size: 24px; align-self: flex-end; margin-top: 20px;">理科室の先生より 👨‍🏫</p>
+        <button class="lv-btn" style="background:#3498db; margin-top: 40px;" onclick="showHome()">ホームにもどる</button>
+    </div>
+
+    <div class="header-info">
+        <button class="quit-btn" onclick="showHome()">🏠 やめる</button>
+        <div class="timer">⏳ <span id="time-left">--</span></div>
+        <div class="score">せいかい: <span id="score-val">0</span> / 10</div>
+    </div>
+    
+    <div id="char-area">
+        <div id="char-icon">👨‍🏫</div>
+        <div id="char-msg"></div>
+    </div>
+
+    <div id="visual-box">
+        <div id="flask-icon" style="font-size: 100px;">🧪</div>
+        <div id="visual-result">準備中...</div>
+    </div>
+
+    <div id="action-area" class="btn-grid"></div>
+
+    <div style="font-weight:bold; margin-bottom:10px; font-size: 28px;">【正体はどれかな？】</div>
+    <div id="ans-area" class="ans-grid"></div>
+</div>
+
+<script>
+const allLiquids = [
+    { name: "食塩水", litmus: "中性", strength: "なし", residue: "白", metal: "なし", smell: "なし", lv: 1 },
+    { name: "塩酸", litmus: "酸性", strength: "強い", residue: "なし", metal: "あり", smell: "あり", lv: 1 },
+    { name: "アンモニア水", litmus: "アルカリ性", strength: "強い", residue: "なし", metal: "なし", smell: "あり", lv: 1 },
+    { name: "炭酸水", litmus: "酸性", strength: "弱い", residue: "なし", metal: "なし", smell: "なし", lv: 2 },
+    { name: "重曹水", litmus: "アルカリ性", strength: "弱い", residue: "白", metal: "なし", smell: "なし", lv: 2 },
+    { name: "石灰水", litmus: "アルカリ性", strength: "少し強い", residue: "白", metal: "なし", smell: "なし", lv: 3 },
+    { name: "酢", litmus: "酸性", strength: "弱い", residue: "なし", metal: "なし", smell: "あり", lv: 3 }
+];
+
+let target, score, timeLeft, timerId, currentLevel;
+
+function showHome() { document.location.reload(); }
+
+function startGame(level) {
+    currentLevel = level;
+    score = 0;
+    if(level === 1) timeLeft = 300;
+    else if(level === 2) timeLeft = 240;
+    else timeLeft = 180;
+
+    document.getElementById('overlay').style.display = 'none';
+    
+    const actArea = document.getElementById('action-area');
+    actArea.innerHTML = `<button class="action-btn" onclick="conduct('litmus')">リトマス紙</button>`;
+    if(level >= 2) actArea.innerHTML += `<button class="action-btn" onclick="conduct('evaporate')">じょうはつ</button>`;
+    if(level >= 3) {
+        actArea.innerHTML += `<button class="action-btn" onclick="conduct('metal')">アルミ</button>`;
+        actArea.innerHTML += `<button class="action-btn" onclick="conduct('smell')">におい</button>`;
+    }
+    actArea.style.gridTemplateColumns = (level === 1) ? "1fr" : "1fr 1fr";
+
+    updateUI();
+    
+    const msg = document.getElementById('char-msg');
+    msg.innerText = `じっくり時間をとって ${timeLeft}秒にしたよ。あせらずに、実験の結果をよく見て10問正解を目指そうね！`;
+    
+    setTimeout(() => {
+        nextQuestion();
+        if(timerId) clearInterval(timerId);
+        timerId = setInterval(tick, 1000);
+    }, 3000);
+}
+
+function tick() {
+    timeLeft--;
+    document.getElementById('time-left').innerText = timeLeft;
+    if(timeLeft <= 0) endGame("じかんぎれ！");
+}
+
+function nextQuestion() {
+    const list = allLiquids.filter(l => l.lv <= currentLevel);
+    target = list[Math.floor(Math.random() * list.length)];
+    document.getElementById('visual-result').innerText = "実験して正体をあてよう！";
+    
+    const flash = document.getElementById('flash-message');
+    flash.innerText = `第 ${score + 1} 問`;
+    flash.className = "flash-next";
+    flash.style.display = "block";
+    setTimeout(() => { flash.style.display = "none"; }, 1000);
+
+    const msg = document.getElementById('char-msg');
+    if (target.strength === "強い") {
+        msg.innerText = "これは かなり強烈（きょうれつ）な性質の水溶液だね。実験の結果がはっきり出るよ。";
+    } else if (target.strength === "少し強い") {
+        msg.innerText = "少し強めの性質があるみたい。どんな変化が起きるかな？";
+    } else if (target.strength === "弱い") {
+        msg.innerText = "おだやかな、弱い性質の水溶液だよ。ゆっくり調べてみてね。";
+    } else {
+        msg.innerText = "特別な強さはないみたい。中性かな？リトマス紙で確かめよう。";
+    }
+
+    const ansArea = document.getElementById('ans-area');
+    ansArea.innerHTML = "";
+    list.forEach(l => {
+        ansArea.innerHTML += `<button class="ans-btn" onclick="check('${l.name}')">${l.name}</button>`;
+    });
+}
+
+function conduct(type) {
+    const res = document.getElementById('visual-result');
+    if(type === 'litmus') {
+        let redPaperColor = "#ffcdd2"; let bluePaperColor = "#bbdefb";
+        if (target.litmus === '酸性') {
+            bluePaperColor = (target.strength === "強い") ? "#d32f2f" : "#ef9a9a";
+        } else if (target.litmus === 'アルカリ性') {
+            redPaperColor = (target.strength === "強い") ? "#1976d2" : "#90caf9";
+        }
+        res.innerHTML = `<div class="litmus-pair">
+            <div class="paper-set"><div class="litmus-paper" style="background:${redPaperColor};"></div><div class="paper-label">赤リトマス紙</div></div>
+            <div class="paper-set"><div class="litmus-paper" style="background:${bluePaperColor};"></div><div class="paper-label">青リトマス紙</div></div>
+        </div>`;
+    } else if(type === 'evaporate') {
+        res.innerHTML = `<span style="font-size:80px;">🔥</span><br>${target.residue === '白' ? "白い粉が残った！" : "何も残らない"}`;
+    } else if(type === 'metal') {
+        res.innerHTML = `<span style="font-size:80px;">🫧</span><br>${target.metal === 'あり' ? "あわを出して溶けた！" : "変化なし"}`;
+    } else if(type === 'smell') {
+        res.innerHTML = `<span style="font-size:80px;">👃</span><br>${target.smell === 'あり' ? "ツンとするにおい！" : "においはない"}`;
+    }
+}
+
+function check(name) {
+    const flash = document.getElementById('flash-message');
+    if(name === target.name) {
+        score++;
+        updateUI();
+        document.getElementById('sound-correct').play().catch(()=>{});
+        
+        flash.innerText = "正解！！";
+        flash.className = "flash-correct";
+        flash.style.display = 'block';
+        
+        setTimeout(() => {
+            flash.style.display = 'none';
+            if(score >= 10) {
+                winGame();
+            } else {
+                nextQuestion();
+            }
+        }, 1200);
+    } else {
+        timeLeft -= 5;
+        document.getElementById('sound-wrong').play().catch(()=>{});
+        document.getElementById('visual-result').innerHTML = "<span style='color:red;'>❌ ちがうみたい。もう一度実験してみよう！ (-5秒)</span>";
+    }
+}
+
+function updateUI() {
+    document.getElementById('score-val').innerText = score;
+}
+
+function winGame() {
+    clearInterval(timerId);
+    document.getElementById('certificate').style.display = 'flex';
+}
+
+function endGame(title) {
+    clearInterval(timerId);
+    const overlay = document.getElementById('overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('overlay-title').innerText = title;
+    document.getElementById('overlay-msg').innerText = `正解数： ${score}問。次は10問を目指そう！`;
+    document.getElementById('menu-btns').innerHTML = `<button class="lv-btn" style="background:#3498db" onclick="showHome()">もういちど 挑戦する</button>`;
+}
+</script></body></html>
