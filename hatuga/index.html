@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>うーたんのインゲンマメ探究ラボ</title>
+    <style>
+        :root { --bg: #fdf6e3; --accent: #ffb74d; --pot-sky: #87CEEB; --soil: #6d4c41; }
+        body { font-family: 'Hiragino Kaku Gothic ProN', sans-serif; background: var(--bg); margin: 0; text-align: center; color: #333; }
+        .screen { display: none; flex-direction: column; align-items: center; min-height: 100vh; padding: 15px; box-sizing: border-box; }
+        .active { display: flex; }
+
+        /* キャラクターとメッセージ */
+        .uutan-box { width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
+        .uutan-svg { width: 130px; height: 130px; }
+        .bubble { background: white; border: 4px solid var(--accent); border-radius: 20px; padding: 15px; width: 90%; position: relative; font-weight: bold; margin-top: 10px; box-shadow: 0 4px 0 var(--accent); min-height: 70px; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; line-height: 1.5; }
+
+        /* 実験エリア */
+        .lab-view { display: flex; gap: 15px; width: 100%; max-width: 700px; height: 240px; margin: 15px 0; }
+        .pot { flex: 1; background: var(--pot-sky); border: 8px solid #8d6e63; border-radius: 15px; position: relative; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+        .soil { position: absolute; bottom: 0; width: 100%; height: 50px; background: var(--soil); z-index: 5; }
+        .plant-pos { position: absolute; bottom: 45px; width: 100%; height: 150px; display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+
+        /* 操作パネル */
+        .panel { background: white; border: 2px solid #ccc; border-radius: 20px; padding: 15px; width: 100%; max-width: 600px; display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; }
+        .label { background: #f0f0f0; border-radius: 8px; font-size: 0.8rem; font-weight: bold; padding: 8px; }
+        .btn { padding: 10px; border: 2px solid #ddd; border-radius: 10px; cursor: pointer; font-weight: bold; background: #fff; font-size: 0.85rem; }
+        .btn.active { background: #4caf50; color: white; border-color: #2e7d32; }
+        .locked { opacity: 0.2; cursor: not-allowed; }
+
+        .go-btn { background: #ff9800; color: white; border: none; padding: 15px 40px; font-size: 1.3rem; border-radius: 50px; cursor: pointer; margin-top: 15px; font-weight: bold; box-shadow: 0 5px 0 #e65100; }
+        .quit-btn { background: #9e9e9e; color: white; border: none; padding: 8px 15px; font-size: 0.8rem; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+
+        /* ノート */
+        .note-bg { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; }
+        .note-paper { background: white; border: 10px solid #8d6e63; padding: 25px; width: 85%; max-width: 450px; text-align: left; }
+    </style>
+</head>
+<body>
+
+    <div id="intro" class="screen active">
+        <div class="uutan-box">
+            <div id="u-intro" class="uutan-svg"></div>
+            <div class="bubble">「ボク、うーたん！🐱 おじいちゃんからもらったタネを育てたいんだ！<br>水さえあれば、すぐ芽が出ると思うんだよね！実験してみよう！」</div>
+        </div>
+        <button class="go-btn" onclick="move('intro', 'lab')">実験をはじめる</button>
+    </div>
+
+    <div id="lab" class="screen">
+        <div class="uutan-box">
+            <div id="u-lab" class="uutan-svg"></div>
+            <div id="msg" class="bubble"></div>
+        </div>
+        <div class="lab-view">
+            <div class="pot"><div id="v-a" class="plant-pos"></div><div class="soil"></div><div style="position:absolute;top:5px;left:5px;font-weight:bold;color:white">A</div></div>
+            <div class="pot"><div id="v-b" class="plant-pos"></div><div class="soil"></div><div style="position:absolute;top:5px;left:5px;font-weight:bold;color:white">B</div></div>
+        </div>
+        <div id="control-panel" class="panel">
+            <div class="label">💧 水</div>
+            <button id="btn-w-a" class="btn" onclick="opt('w','a')">なし</button>
+            <button id="btn-w-b" class="btn" onclick="opt('w','b')">なし</button>
+            
+            <div id="row-t" class="label locked">🌡️ 温度</div>
+            <button id="btn-t-a" class="btn locked" onclick="opt('t','a')">さむい</button>
+            <button id="btn-t-b" class="btn locked" onclick="opt('t','b')">さむい</button>
+            
+            <div id="row-air" class="label locked">💨 空気</div>
+            <button id="btn-air-a" class="btn locked" onclick="opt('air','a')">なし</button>
+            <button id="btn-air-b" class="btn locked" onclick="opt('air','b')">なし</button>
+
+            <div id="row-grow" class="label locked">🧪 成長</div>
+            <button id="btn-grow-a" class="btn locked" onclick="opt('grow','a')">日光のみ</button>
+            <button id="btn-grow-b" class="btn locked" onclick="opt('grow','b')">日光のみ</button>
+        </div>
+        <button id="run-btn" class="go-btn" onclick="runExperiment()">数日間、観察する</button>
+        <button class="quit-btn" onclick="location.reload()">最初からやり直す</button>
+    </div>
+
+    <div id="note" class="note-bg">
+        <div class="note-paper">
+            <h2 style="margin:0; color:#ff9800; border-bottom: 4px solid #ff9800;">📖 観察ノート</h2>
+            <p id="note-txt" style="font-size:1.1rem; font-weight:bold; margin:20px 0; line-height:1.6;"></p>
+            <button class="go-btn" style="width:100%" onclick="closeNote()">次へ進む</button>
+        </div>
+    </div>
+
+    <svg style="display:none">
+        <symbol id="cat" viewBox="0 0 100 100">
+            <circle cx="50" cy="55" r="42" fill="#fff9e6" stroke="#ffb74d" stroke-width="2"/>
+            <path d="M25,35 L10,5 L45,25 Z" fill="#fff9e6" stroke="#ffb74d" stroke-width="2"/><path d="M75,35 L90,5 L55,25 Z" fill="#fff9e6" stroke="#ffb74d" stroke-width="2"/>
+            <ellipse cx="38" cy="52" rx="6" ry="8" fill="#333"/><ellipse cx="62" cy="52" rx="6" ry="8" fill="#333"/><path d="M42,72 Q50,80 58,72" fill="none" stroke="#333" stroke-width="2"/>
+        </symbol>
+        <symbol id="seed-dry" viewBox="0 0 100 100"><ellipse cx="50" cy="90" rx="15" ry="8" fill="#d7ccc8" stroke="#8d6e63"/></symbol>
+        <symbol id="seed-wet" viewBox="0 0 100 100"><ellipse cx="50" cy="88" rx="18" ry="10" fill="#efe5e2" stroke="#a1887f"/></symbol>
+        <symbol id="sprout" viewBox="0 0 100 100"><path d="M50,100 Q50,50 50,30" stroke="#81c784" stroke-width="6" fill="none"/><ellipse cx="35" cy="35" rx="12" ry="8" fill="#4caf50" transform="rotate(-20 35 35)"/><ellipse cx="65" cy="35" rx="12" ry="8" fill="#4caf50" transform="rotate(20 65 35)"/></symbol>
+        <symbol id="grown" viewBox="0 0 100 100"><path d="M50,100 L50,20" stroke="#2e7d32" stroke-width="8"/><path d="M50,50 L30,40 M50,70 L70,60" stroke="#2e7d32" stroke-width="4"/><circle cx="50" cy="20" r="10" fill="#fff" stroke="#ffb74d"/></symbol>
+        <symbol id="dead" viewBox="0 0 100 100"><path d="M50,100 Q40,80 30,90 M50,100 Q60,80 70,90" stroke="#795548" stroke-width="4" fill="none"/></symbol>
+    </svg>
+
+<script>
+    let stage = 0; // 0:水, 1:温度, 2:空気, 3:成長(日光と肥料)
+    let conf = { 
+        a:{w:false, t:true, air:true, grow:0}, 
+        b:{w:false, t:true, air:true, grow:0} 
+    };
+    const uutanGuides = [
+        "「まずは水を『あり』と『なし』にして実験だ！水だけで芽が出るかな？🐱」",
+        "「あれ…水だけじゃ芽が出ない！？ おじいちゃんが『温かくして』って言ってたのを思い出したよ！」",
+        "「水も温度もそろえたのに、まだ芽が出ないよ…。何が足りないんだろう？💨」",
+        "「やったぁ！水・温度・空気がそろって芽が出たよ！🌱 もっと大きく育てるにはどうすればいいかな？」"
+    ];
+
+    const catSVG = '<svg width="100%" height="100%"><use xlink:href="#cat"/></svg>';
+    document.getElementById('u-intro').innerHTML = catSVG;
+    document.getElementById('u-lab').innerHTML = catSVG;
+
+    function move(h, s) { document.getElementById(h).style.display = 'none'; document.getElementById(s).style.display = 'flex'; updateUI(); }
+
+    function opt(type, pot) {
+        if(document.getElementById(`btn-${type}-${pot}`).classList.contains('locked')) return;
+        if(type === 'grow') {
+            conf[pot].grow = (conf[pot].grow + 1) % 3; // 0:日光のみ, 1:日光+適量肥料, 2:日光+やりすぎ肥料
+        } else {
+            conf[pot][type] = !conf[pot][type];
+        }
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('msg').innerText = uutanGuides[stage] || "実験完了！";
+        ['w', 't', 'air', 'grow'].forEach(t => {
+            ['a','b'].forEach(p => {
+                const btn = document.getElementById(`btn-${t}-${p}`);
+                if(!btn) return;
+                if(t === 'grow') {
+                    const labels = ["日光のみ", "日光＋ひりょう", "日光＋ひりょう多すぎ"];
+                    btn.innerText = labels[conf[p].grow];
+                    btn.classList.toggle('active', conf[p].grow > 0);
+                } else {
+                    btn.classList.toggle('active', conf[p][t]);
+                    if(t==='t') btn.innerText = conf[p][t] ? "ぬくぬく" : "さむい";
+                    else btn.innerText = conf[p][t] ? "あり" : "なし";
+                }
+            });
+        });
+        draw(false);
+    }
+
+    function runExperiment() {
+        let diff = [];
+        ['w', 't', 'air', 'grow'].forEach(k => { if(conf.a[k] !== conf.b[k]) diff.push(k); });
+        const m = document.getElementById('msg');
+        
+        if(diff.length !== 1) { m.innerText = "「比べる条件を１つだけ変えてみて！🐱」"; return; }
+        
+        const target = diff[0];
+        // 科学的バリデーション（条件制御）
+        if(stage === 1 && target === 't' && (!conf.a.w || !conf.b.w)) { m.innerText = "「温度を調べるときは、両方『水あり』にそろえてね！」"; return; }
+        if(stage === 2 && target === 'air' && (!conf.a.w || !conf.b.w || !conf.a.t || !conf.b.t)) { m.innerText = "「空気を調べるときは、水と温度を『あり』にそろえてね！」"; return; }
+        if(stage === 3 && target === 'grow' && (!conf.a.w || !conf.b.w || !conf.a.t || !conf.b.t || !conf.a.air || !conf.b.air)) { m.innerText = "「成長を調べるときは、発芽の条件を全部そろえてね！」"; return; }
+
+        draw(true);
+        setTimeout(() => {
+            const nt = document.getElementById('note-txt');
+            if(target === 'w') {
+                nt.innerText = "水があるポットも芽が出なかったね。水だけじゃ足りないことがわかったよ！"; stage = 1; unlock('t');
+            } else if(target === 't') {
+                nt.innerText = "水と温度をそろえても、まだ芽が出ない…。不思議だね。空気はどうかな？"; stage = 2; unlock('air');
+            } else if(target === 'air') {
+                nt.innerText = "ついに芽が出た！発芽には『水・温度・空気』の3つが絶対に必要なんだね！"; stage = 3; unlock('grow');
+            } else if(target === 'grow') {
+                if(conf.a.grow === 2 || conf.b.grow === 2) {
+                    nt.innerText = "あわわ！肥料をあげすぎた方は枯れちゃった。肥料は多すぎてもダメなんだね…。";
+                } else {
+                    nt.innerText = "日光と適度な肥料で、インゲンマメが大きく育って花が咲いたよ！大成功！";
+                }
+                stage = 4;
+            }
+            document.getElementById('note').style.display = 'flex';
+        }, 1500);
+    }
+
+    function draw(isRes) {
+        ['a','b'].forEach(p => {
+            const s = conf[p];
+            let id = "#seed-dry";
+            if(isRes) {
+                // 発芽の3条件チェック
+                const canGerminate = s.w && s.t && s.air;
+                if(canGerminate) {
+                    if(stage >= 3) {
+                        if(s.grow === 1) id = "#grown";
+                        else if(s.grow === 2) id = "#dead";
+                        else id = "#sprout";
+                    } else { id = "#sprout"; }
+                } else if(s.w) { id = "#seed-wet"; }
+            }
+            document.getElementById('v-'+p).innerHTML = `<svg width="100%" height="100%"><use xlink:href="${id}"/></svg>`;
+        });
+    }
+
+    function unlock(id) {
+        document.getElementById('row-'+id).classList.remove('locked');
+        document.getElementById(`btn-${id}-a`).classList.remove('locked');
+        document.getElementById(`btn-${id}-b`).classList.remove('locked');
+    }
+
+    function closeNote() {
+        document.getElementById('note').style.display = 'none';
+        if(stage >= 4) { alert("すべての探究クリア！最高の科学者だね！🐱🏆"); location.reload(); }
+        else updateUI();
+    }
+</script>
+</body>
+</html>

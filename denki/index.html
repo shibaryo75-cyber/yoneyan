@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6年理科：電気マスター決定戦</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --main-font: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; }
+        body { font-family: var(--main-font); text-align: center; background-color: #e3f2fd; padding: 20px; font-size: 24px; overflow-x: hidden; }
+        .card { background: white; border-radius: 30px; padding: 40px; box-shadow: 0 15px 30px rgba(0,0,0,0.15); max-width: 850px; margin: auto; position: relative; }
+        
+        /* 巨大判定 */
+        #huge-result {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 15rem; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; display: none; white-space: nowrap;
+        }
+        .correct-anim { display: block !important; animation: pop 0.8s ease-out; color: #ff5252; text-shadow: 8px 8px 0 white; }
+        .wrong-anim { display: block !important; animation: shake 0.6s; color: #448aff; text-shadow: 8px 8px 0 white; }
+
+        @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+        @keyframes shake { 0%, 100% { transform: translate(-50%, -50%); opacity: 1; } 20%, 60% { transform: translate(-53%, -50%); } 40%, 80% { transform: translate(-47%, -50%); } 100% { opacity: 0; } }
+
+        /* キャラクターと文字 */
+        .balloon { background: #ffffff; border: 4px solid #03a9f4; border-radius: 15px; padding: 20px; font-weight: bold; font-size: 1.8rem; line-height: 1.3; margin-bottom: 20px; }
+        h1 { font-size: 2.5rem; color: #0277bd; margin-bottom: 30px; }
+        #question { font-size: 2.2rem; font-weight: bold; margin: 30px 0; text-align: left; min-height: 180px; background: #f1f8ff; padding: 25px; border-radius: 15px; border-left: 10px solid #03a9f4; }
+        
+        /* ボタン */
+        .mode-btn { font-size: 1.8rem; padding: 20px 40px; margin: 15px; cursor: pointer; border: none; border-radius: 60px; width: 90%; font-weight: bold; box-shadow: 0 6px #bbb; transition: 0.2s; }
+        .easy { background-color: #4caf50; color: white; }
+        .normal { background-color: #ff9800; color: white; }
+        .hard { background-color: #f44336; color: white; }
+        .quit-btn { position: absolute; top: 10px; right: 10px; background: #9e9e9e; color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 1.2rem; }
+        
+        .choice-btn { font-size: 6rem; padding: 20px 100px; margin: 20px; cursor: pointer; border: none; border-radius: 30px; transition: 0.2s; box-shadow: 0 10px #ccc; }
+        .btn-o { background-color: #ff5252; color: white; box-shadow: 0 10px #d32f2f; }
+        .btn-x { background-color: #448aff; color: white; box-shadow: 0 10px #1976d2; }
+        .btn-o:active, .btn-x:active { transform: translateY(6px); box-shadow: none; }
+        
+        .hidden { display: none; }
+        #progress { font-size: 1.6rem; color: #666; font-weight: bold; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="huge-result"></div>
+
+<div class="card">
+    <button id="global-stop" class="quit-btn hidden" onclick="quitGame()">やめる</button>
+
+    <div id="start-screen">
+        <h1>⚡️ 電気マスター決定戦 ⚡️</h1>
+        <div class="balloon">👨‍🔬「ワシはデンキ博士じゃ！キラキラの満点を目指して頑張るんじゃ、米田先生の教え子たちよ！」</div>
+        <button class="mode-btn easy" onclick="startGame('easy')">初級 (5問)</button>
+        <button class="mode-btn normal" onclick="startGame('normal')">中級 (8問)</button>
+        <button class="mode-btn hard" onclick="startGame('hard')">上級 (10問)</button>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <div id="progress"></div>
+        <div id="question"></div>
+        <div class="balloon" id="char-msg">👨‍🔬「どっちかな？」</div>
+        <div>
+            <button class="choice-btn btn-o" onclick="handleChoice('o')">◯</button>
+            <button class="choice-btn btn-x" onclick="handleChoice('x')">×</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="hidden">
+        <h1 id="result-title">結果発表！</h1>
+        <div id="result-emoji" style="font-size: 120px;">🏆</div>
+        <p id="final-score" style="font-size: 3.5rem; font-weight:bold; color:#f57c00;"></p>
+        <div class="balloon" id="final-msg"></div>
+        <button id="retry-btn" class="mode-btn normal" onclick="location.reload()">リベンジする！</button>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        if (type === 'correct') {
+            osc.frequency.setValueAtTime(660, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        } else {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+        }
+    }
+
+    // キラキラ演出
+    function launchConfetti() {
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#ffeb3b', '#ff5252', '#2196f3', '#4caf50', '#ffffff']
+        });
+    }
+
+    const allQuizzes = {
+        easy: [
+            { q: "手回し発電機は、手を動かす力を電気に変える？", a: "o", h: "運動を電気に変えるんじゃ！" },
+            { q: "コンデンサーは、電気をためることができる？", a: "o", h: "電気の貯金箱じゃな。" },
+            { q: "光電池は、暗い方がよく発電する？", a: "x", h: "光が強いほど元気が出るぞ。" },
+            { q: "電気は、音や光に変えて使える？", a: "o", h: "テレビやチャイムがそうじゃな。" },
+            { q: "LEDは、豆電球より電気がたくさん必要？", a: "x", h: "LEDは省エネの王様じゃ！" }
+        ],
+        normal: [
+            { q: "発電機を逆に回すと、電流の向きも逆になる？", a: "o", h: "検流計の針が逆にふれるぞ！" },
+            { q: "LEDには、プラスとマイナスの向きがある？", a: "o", h: "逆にすると光らないんじゃよ。" },
+            { q: "コンデンサーにためた電気で、モーターを回せる？", a: "o", h: "乾電池の代わりに使えるんじゃ。" },
+            { q: "使う時だけ電気を流すプログラムは、節電になる？", a: "o", h: "賢い使い方の代表例じゃな。" },
+            { q: "手回し発電機を速く回すと、電圧は強くなる？", a: "o", h: "回す速さがパワーになるんじゃ。" },
+            { q: "豆電球とLED、電気をたくさん使うのは豆電球？", a: "o", h: "豆電球は熱も出すから電気がいるんじゃ。" },
+            { q: "電気は、モーターを使って運動の力に変えられる？", a: "o", h: "扇風機や動くおもちゃがそうじゃ！" },
+            { q: "コンデンサーにためた電気は、一生消えない？", a: "x", h: "少しずつ逃げていく（放電）んじゃ。" }
+        ],
+        hard: [
+            { q: "電熱線は、太い方が熱が出やすい？", a: "o", h: "太い方が電気が流れやすいんじゃよ！" },
+            { q: "センサーとプログラムで、必要な時だけ明かりをつけられる？", a: "o", h: "最新の街灯もそうなっておるぞ。" },
+            { q: "手回し発電機を回す力は、コンデンサーにためると保存できる？", a: "o", h: "電気として保存されるんじゃ。" },
+            { q: "電熱線の太さを変えても、水が温まる速さは変わらない？", a: "x", h: "太い方がパワーが強くて速いんじゃ。" },
+            { q: "LEDは、電熱線が熱くなって光る仕組みである？", a: "x", h: "熱を出さずに光るから省エネなんじゃ。" },
+            { q: "光電池を2つ直列につなぐと、プロペラの回りは速くなる？", a: "o", h: "電圧が高くなってパワーが増すんじゃ。" },
+            { q: "手回し発電機の中には、モーターに似た仕組みが入っている？", a: "o", h: "磁石とコイルが使われておるぞ。" },
+            { q: "電気を熱に変える道具には「ドライヤー」がある？", a: "o", h: "熱と風の両方に電気を使っとるな。" },
+            { q: "発電所の電気と、手回しの電気は別の物質？", a: "x", h: "同じ電気エネルギーじゃよ。" },
+            { q: "プログラムによる制御は、資源を大切にすることにつながる？", a: "o", h: "ムダをなくすのがプログラムの良さじゃ！" }
+        ]
+    };
+
+    let currentQuestions = [];
+    let currentIdx = 0;
+    let score = 0;
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function startGame(mode) {
+        currentQuestions = shuffle([...allQuizzes[mode]]);
+        currentIdx = 0; score = 0;
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+        document.getElementById('global-stop').classList.remove('hidden');
+        showQuestion();
+    }
+
+    function showQuestion() {
+        const q = currentQuestions[currentIdx];
+        document.getElementById('progress').innerText = `第 ${currentIdx + 1} 問 / ${currentQuestions.length}`;
+        document.getElementById('question').innerText = q.q;
+        document.getElementById('char-msg').innerText = "👨‍🔬「どっちかな？」";
+    }
+
+    function handleChoice(userAns) {
+        const q = currentQuestions[currentIdx];
+        const huge = document.getElementById('huge-result');
+        const charMsg = document.getElementById('char-msg');
+
+        if (userAns === q.a) {
+            score++;
+            playSound('correct');
+            launchConfetti(); // キラキラ実行！
+            huge.innerText = "正解！";
+            huge.className = "correct-anim";
+            charMsg.innerText = "👨‍🔬「正解じゃ！お見事！」";
+        } else {
+            playSound('wrong');
+            huge.innerText = "まちがい";
+            huge.className = "wrong-anim";
+            charMsg.innerText = "👨‍🔬「博士の教え：" + q.h + "」";
+        }
+
+        setTimeout(() => {
+            huge.className = ""; huge.style.display = "none";
+            currentIdx++;
+            if (currentIdx < currentQuestions.length) {
+                showQuestion();
+            } else {
+                showResult();
+            }
+        }, userAns === q.a ? 1000 : 4000);
+    }
+
+    function quitGame() {
+        if(confirm("とちゅうでやめて、最初にもどる？")) location.reload();
+    }
+
+    function showResult() {
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('global-stop').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = `${currentQuestions.length}問中 ${score}問 正解！`;
+        
+        const finalMsg = document.getElementById('final-msg');
+        const retryBtn = document.getElementById('retry-btn');
+        const emoji = document.getElementById('result-emoji');
+
+        if (score === currentQuestions.length) {
+            emoji.innerText = "👑";
+            finalMsg.innerText = "👨‍🔬「完ぺきじゃ！君こそ電気マスター！米田先生もきっと喜んでおるぞ！」";
+            retryBtn.innerText = "他のレベルにも挑戦する！";
+            // 最後のクリア演出
+            for(let i=0; i<3; i++) setTimeout(launchConfetti, i*500);
+        } else {
+            emoji.innerText = "🥈";
+            const diff = currentQuestions.length - score;
+            finalMsg.innerText = `👨‍🔬「おしい！あと ${diff} 問で満点じゃったな…。次はキラキラをたくさん出すんじゃぞ！」`;
+            retryBtn.innerText = "🔥 満点めざしてリベンジ！";
+            retryBtn.style.backgroundColor = "#ff5722";
+        }
+    }
+</script>
+</body>
+</html>
