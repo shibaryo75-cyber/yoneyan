@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>わくわく！理科のじっけん室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #e0f2fe;
+            --card-bg: #ffffff;
+            --accent-color: #3b82f6;
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ふわふわ浮かぶ泡のアニメーション */
+        .bubble {
+            position: fixed;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            z-index: -1;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+        }
+
+        .app-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 4px solid transparent;
+        }
+
+        .app-card:hover {
+            transform: scale(1.05) rotate(1deg);
+            border-color: #fbbf24;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .bounce {
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* 派手なボタン */
+        .btn-adventure {
+            background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+            box-shadow: 0 4px 0 #b45309;
+            transition: all 0.1s;
+        }
+
+        .btn-adventure:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #b45309;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <!-- 背景の泡 -->
+    <div id="bubbles"></div>
+
+    <!-- Header -->
+    <header class="py-6 px-4">
+        <div class="max-w-6xl mx-auto flex justify-between items-center bg-white/70 backdrop-blur-md p-4 rounded-3xl shadow-sm border-2 border-white">
+            <div class="flex items-center space-x-3">
+                <div class="bg-yellow-400 p-3 rounded-2xl shadow-inner bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold text-slate-800 tracking-wider">わくわく！理科のじっけん室</h1>
+                    <p class="text-xs font-bold text-blue-500 uppercase tracking-widest">Science App Explorer</p>
+                </div>
+            </div>
+            <div id="stats" class="hidden sm:block text-sm font-black text-white bg-blue-500 px-4 py-2 rounded-full shadow-md">
+                読み込み中...
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main class="max-w-6xl mx-auto px-4 py-10">
+        <div class="text-center mb-16 relative">
+            <h2 class="text-4xl sm:text-6xl font-black text-slate-900 mb-6 drop-shadow-sm">
+                きみも、<span class="text-blue-600 underline decoration-yellow-400 decoration-8">かがくしゃ</span>だ！
+            </h2>
+            <p class="text-lg sm:text-xl font-bold text-slate-600 max-w-2xl mx-auto leading-loose">
+                おどろきがいっぱいのアプリであそぼう！<br>
+                じっけんしたり、クイズに答えたりして、理科の名人を目指せ！
+            </p>
+        </div>
+
+        <!-- App Grid -->
+        <div id="app-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            <!-- JavaScript will populate this -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-20 pb-10 px-4 text-center">
+        <div class="max-w-xl mx-auto bg-white/50 p-8 rounded-3xl border-2 border-dashed border-slate-300">
+            <p class="font-bold text-slate-500">&copy; 2024 りかのアドベンチャー・プロジェクト</p>
+            <p class="text-xs mt-2 text-slate-400">新しいアプリはプログラムのリストにどんどん追加していくよ！</p>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * アプリの追加リスト
+         */
+        const apps = [
+            {
+                title: "水溶液たんてい",
+                description: "いくつかの実験方法を試して、水溶液の性質をあてよう",
+                url: "https://shibaryo75-cyber.github.io/yoneyan/mizuquiz/",
+                color: "bg-blue-500"
+            },
+            {
+                title: "発芽マスター",
+                description: "条件制ぎょにきをつけて、植物を成長させよう",
+                url: "https://shibaryo75-cyber.github.io/yoneyan/hatuga/",
+                color: "bg-emerald-500"
+            },
+            {
+                title: "電気マスター決定戦",
+                description: "君も電気マスターをめざさないかい",
+                url: "https://shibaryo75-cyber.github.io/yoneyan/denki/",
+                color: "bg-green-500"
+            },
+            {
+                title: "開発中",
+                description: "こうご期待",
+                url: "#",
+                color: "bg-amber-500"
+            },
+            {
+                title: "開発中",
+                description: "こうご期待",
+                url: "#",
+                color: "bg-amber-500"
+            },
+            {
+                title: "開発中",
+                description: "こうご期待",
+                url: "#",
+                color: "bg-amber-500"
+            }
+        ];
+
+        // 背景の泡を生成
+        const bubbleContainer = document.getElementById('bubbles');
+        for (let i = 0; i < 15; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            const size = Math.random() * 60 + 20 + 'px';
+            bubble.style.width = size;
+            bubble.style.height = size;
+            bubble.style.left = Math.random() * 100 + 'vw';
+            bubble.style.animationDuration = Math.random() * 10 + 10 + 's';
+            bubble.style.animationDelay = Math.random() * 5 + 's';
+            bubbleContainer.appendChild(bubble);
+        }
+
+        function renderApps() {
+            const grid = document.getElementById('app-grid');
+            grid.innerHTML = '';
+            
+            apps.forEach((app, index) => {
+                const card = document.createElement('div');
+                card.className = 'app-card bg-white rounded-[2rem] p-1 shadow-lg flex flex-col h-full';
+                
+                // カード内部のデザイン
+                card.innerHTML = `
+                    <div class="p-8 flex flex-col h-full">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="w-16 h-16 ${app.color} rounded-2xl shadow-lg flex items-center justify-center text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                            </div>
+                            <span class="text-xs font-black text-slate-300">#${String(index + 1).padStart(2, '0')}</span>
+                        </div>
+                        <h3 class="text-2xl font-extrabold text-slate-800 mb-4 leading-tight">${app.title}</h3>
+                        <p class="text-slate-500 font-bold text-sm mb-8 flex-grow">${app.description}</p>
+                        <a href="${app.url}" class="btn-adventure inline-flex items-center justify-center w-full px-6 py-4 text-white text-lg font-black rounded-2xl group">
+                            冒険をはじめる！
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-2 group-hover:translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                        </a>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('stats').innerText = `${apps.length} 個のアプリで遊べるよ！`;
+        }
+
+        window.onload = renderApps;
+    </script>
+</body>
+</html>
