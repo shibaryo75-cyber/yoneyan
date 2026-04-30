@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>砂防マスター：完結編</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* スクロールバーを非表示にする */
+      background-color: #d2e6f5; /* タイトル画面の背景色に合わせています */
+      touch-action: none; /* スマホでのスワイプによる画面スクロールを防止 */
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+  <!-- p5.js 本体の読み込み（p5.sound.js はエラーの原因になりやすいため削除しました） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+  <script>
+    let waterParticles = [], sedimentParticles = [], walls = [], land = [], buildings = [], trees = [];
+    let resolution = 15, cols, rows, gameState = "TITLE", currentLevel = 1, maxLevels = 10;
+    let brokenCount = 0, maxBroken = 5, timeLeft = 30, lastWallTime = 0, wallDelay = 800;
+    let rainMode = false, stats = { erosion: 0, sediment: 0, transport: 0 };
+    let showHazard = false;
+    let toolMode = "BLOCK"; // BLOCK or TREE
+    
+    // 音声関連の変数
+    let audioInitialized = false;
+    let audioCtx;
+
+    let difficulty = "NORMAL";
+    let diffSettings = {
+      "EASY":   { time: 40, waterRate: 7, speedMult: 0.8, label: "かんたん" },
+      "NORMAL": { time: 30, waterRate: 5, speedMult: 1.0, label: "ふつう" },
+      "HARD":   { time: 20, waterRate: 3, speedMult: 1.3, label: "むずかしい" }
+    };
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      cols = floor(width / resolution);
+      rows = floor(height / resolution);
+      prepareLevelData();
+    }
+
+    // ブラウザ標準の Web Audio API を使った音声初期化
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // ブラウザ標準の Web Audio API を使ったビープ音再生
+    function playSound(f, t = 'sine', d = 0.1, vol = 0.2) {
+      if (!audioCtx) return;
+      let osc = audioCtx.createOscillator();
+      let gainNode = audioCtx.createGain();
+      
+      osc.type = t;
+      osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+      
+      gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+      // 音を徐々に小さくする
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + d);
+    }
+
+    function prepareLevelData() {
+      waterParticles = []; sedimentParticles = []; walls = []; land = []; buildings = []; trees = [];
+      stats = { erosion: 0, sediment: 0, transport: 0 };
+      brokenCount = 0; rainMode = false; showHazard = true;
+      timeLeft = diffSettings[difficulty].time;
+
+      let riverType = getRiverType();
+      let freq = currentLevel === 1 ? 0 : 0.08 + currentLevel * 0.02;
+      let amp = currentLevel === 1 ? 0 : 3 + currentLevel * 0.7;
+      let riverWidth = riverType === "上流" ? 2 : (riverType === "中流" ? 3.5 : 5);
+
+      for (let i = 0; i < cols; i++) {
+        land[i] = [];
+        for (let j = 0; j < rows; j++) {
+          let riverCenter = cols / 2 + sin(j * freq) * amp;
+          land[i][j] = (i < riverCenter - riverWidth || i > riverCenter + riverWidth) ? 100 : 0;
+        }
+      }
+      for (let j = 10; j < rows - 8; j += 12) {
+        let riverX = floor(cols / 2 + sin(j * freq) * amp);
+        buildings.push({gx: riverX - floor(riverWidth+2), gy: j, type: random(['🏠', '🏫', '🏥'])});
+        buildings.push({gx: riverX + floor(riverWidth+2), gy: j, type: random(['🏠', '🏫', '🏥'])});
+      }
+      setTimeout(() => { showHazard = false; }, 3000);
+    }
+
+    function getRiverType() {
+      if (currentLevel <= 3) return "上流";
+      if (currentLevel <= 7) return "中流";
+      return "下流";
+    }
+
+    function draw() {
+      if (gameState === "TITLE") { drawTitleScreen(); return; }
+      
+      if (rainMode) background(100, 110, 120); 
+      else background(210, 230, 245);
+
+      if (gameState === "PLAY") {
+        if (frameCount % 60 == 0 && timeLeft > 0) timeLeft--;
+        if (timeLeft <= 0) gameState = (currentLevel >= maxLevels) ? "ALL_CLEAR" : "REPORT";
+        rainMode = (timeLeft < 20 && timeLeft > 10);
+
+        let rate = rainMode ? 2 : diffSettings[difficulty].waterRate;
+        if (frameCount % rate == 0) {
+          let freq = currentLevel === 1 ? 0 : 0.08 + currentLevel * 0.02;
+          let amp = currentLevel === 1 ? 0 : 3 + currentLevel * 0.7;
+          let startX = width/2 + sin(0) * amp * resolution;
+          waterParticles.push(new Water(startX + random(-10,10), 0));
+        }
+      }
+
+      // 地形描画
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          if (land[i][j] > 0) {
+            noStroke();
+            fill(land[i][j] < 40 ? color(220, 190, 150) : color(160, 120, 80, land[i][j]*2.5));
+            rect(i * resolution, j * resolution, resolution, resolution);
+            if (showHazard && land[i][j] > 40) {
+               fill(255, 0, 0, 80); rect(i * resolution, j * resolution, resolution, resolution);
+            }
+          }
+        }
+      }
+      
+      // 建物と木を描画
+      for (let b of buildings) {
+        if (land[b.gx] && land[b.gx][b.gy] > 30) {
+          textSize(resolution * 2.5); textAlign(CENTER, CENTER);
+          text(b.type, b.gx * resolution + resolution/2, b.gy * resolution + resolution/2);
+        }
+      }
+      for (let t of trees) {
+        if (land[t.gx] && land[t.gx][t.gy] > 10) {
+          textSize(resolution * 2); text("🌳", t.gx * resolution + resolution/2, t.gy * resolution + resolution/2);
+        }
+      }
+
+      updateWater();
+      updateSediment();
+      for (let w of walls) drawTetra(w.x, w.y);
+      drawUI();
+      if (gameState !== "PLAY") { drawOverlay(); noLoop(); }
+    }
+
+    function updateWater() {
+      let rType = getRiverType();
+      for (let i = waterParticles.length - 1; i >= 0; i--) {
+        let p = waterParticles[i]; p.update(); p.display();
+        let gx = floor(p.x / resolution), gy = floor(p.y / resolution);
+        if (gx >= 0 && gx < cols && gy >= 0 && gy < rows) {
+          if (land[gx][gy] > 30) {
+            // 木がある場所は浸食が1/5に軽減される
+            let hasTree = trees.some(t => t.gx === gx && t.gy === gy);
+            let erosionPower = rType === "上流" ? 15 : (rType === "中流" ? 8 : 4);
+            if (hasTree) erosionPower *= 0.2; 
+            
+            land[gx][gy] -= rainMode ? erosionPower*2 : erosionPower;
+            stats.erosion++;
+            p.vx += (p.x < (gx+0.5)*resolution) ? -0.8 : 0.8;
+            if (random(1) > 0.4) { sedimentParticles.push(new Sediment(p.x, p.y)); stats.transport++; }
+          } else if (land[gx][gy] < 30 && p.vy < 3.5) {
+            if (random(1) > 0.98) { land[gx][gy] += 5; stats.sediment++; }
+          }
+        }
+        for (let w of walls) {
+          if (dist(p.x, p.y, w.x, w.y) < 35) { p.vx = (p.x - w.x) * 0.8; p.vy *= 0.4; }
+        }
+        if (p.y > height) waterParticles.splice(i, 1);
+      }
+    }
+
+    function updateSediment() {
+      for (let i = sedimentParticles.length - 1; i >= 0; i--) {
+        let s = sedimentParticles[i]; s.x += s.vx; s.y += s.vy;
+        fill(139, 69, 19, 150); noStroke(); circle(s.x, s.y, 4);
+        let gx = floor(s.x/resolution), gy = floor(s.y/resolution);
+        if (gy >= 0 && gy < rows && land[gx] && land[gx][gy] < 40) {
+          if (random(1) > 0.98) { land[gx][gy] += 3; sedimentParticles.splice(i, 1); }
+        }
+        if (s.y > height) sedimentParticles.splice(i, 1);
+      }
+    }
+
+    function drawTetra(x, y) {
+      push(); translate(x, y); fill(180); stroke(100);
+      for(let a=0; a<TWO_PI; a+=TWO_PI/3) ellipse(cos(a)*12, sin(a)*12, 14, 14);
+      ellipse(0, 0, 14, 14); pop();
+    }
+
+    function drawTitleScreen() {
+      background(210, 230, 245); textAlign(CENTER, CENTER); fill(0, 50, 150);
+      textSize(48); textStyle(BOLD); text("砂防マスター：完結編", width/2, height/2 - 140);
+      textSize(18); textStyle(NORMAL); fill(50);
+      text("【新機能】木を植えて、山と地面を守ろう！\n10ステージ調査して究極のマスターを目指せ。", width/2, height/2 - 70);
+      drawDiffButton(width/2, height/2 + 40, "EASY", color(100, 200, 100));
+      drawDiffButton(width/2, height/2 + 110, "NORMAL", color(255, 200, 0));
+      drawDiffButton(width/2, height/2 + 180, "HARD", color(255, 100, 100));
+    }
+
+    function drawDiffButton(x, y, mode, c) {
+      stroke(255); strokeWeight(2); fill(c); rect(x - 100, y - 30, 200, 60, 10);
+      noStroke(); fill(255); textSize(24); text(diffSettings[mode].label, x, y);
+    }
+
+    function drawUI() {
+      noStroke(); fill(0, 180); rect(0, 0, width, 120);
+      fill(255); textAlign(LEFT, CENTER); textSize(16);
+      text("エリア: " + getRiverType() + " | ステージ: " + currentLevel + "/10", 20, 25);
+      text("⏱ 残り: " + timeLeft + "秒", 20, 50);
+      
+      // ツール切り替えボタン
+      let btnY = 85;
+      fill(toolMode === "BLOCK" ? color(255, 255, 0) : 100); rect(20, btnY-15, 80, 30, 5);
+      fill(toolMode === "TREE" ? color(100, 255, 100) : 100); rect(110, btnY-15, 80, 30, 5);
+      fill(0); textSize(14); text("ブロック", 35, btnY); text("植樹", 135, btnY);
+
+      fill(255, 255, 0); textAlign(RIGHT, CENTER);
+      text("🏘 倒壊: " + brokenCount + " / " + maxBroken, width - 20, 70);
+      fill(150, 0, 0); rect(width - 110, 15, 90, 35, 5);
+      fill(255); text("やめる", width - 65, 32);
+
+      if (gameState === "PLAY") {
+        let barW = map(constrain(millis() - lastWallTime, 0, wallDelay), 0, wallDelay, 0, 80);
+        fill(255); rect(mouseX - 40, mouseY + 30, 80, 5);
+        fill(toolMode === "BLOCK" ? color(0, 200, 255) : color(0, 255, 0)); rect(mouseX - 40, mouseY + 30, barW, 5);
+      }
+    }
+
+    function drawOverlay() {
+      fill(0, 220); rect(0, 0, width, height);
+      fill(255); textAlign(CENTER, CENTER);
+      if (gameState === "REPORT") {
+        textSize(28); fill(255, 200, 0); text("地質調査レポート", width/2, height*0.25);
+        fill(255); text("浸食: " + stats.erosion + " | 運搬: " + stats.transport + " | 堆積: " + stats.sediment, width/2, height*0.45);
+        let advice = stats.erosion > 1000 ? "浸食が激しい！木を植えると地面が強くなるぞ。" : "上手に地面を守れたね！";
+        fill(255, 255, 0); text("カッパ博士: " + advice, width/2, height*0.6);
+        fill(0, 255, 0); rect(width/2-100, height*0.75, 200, 50, 10);
+        fill(255); text("次へすすむ", width/2, height*0.75 + 25);
+      } else if (gameState === "ALL_CLEAR") {
+        textSize(40); fill(255, 215, 0); text("🎖 究極砂防マスター 🎖", width/2, height*0.4);
+        fill(0, 100, 200); rect(width/2-100, height*0.7, 200, 50, 10);
+        fill(255); text("ホームにもどる", width/2, height*0.7 + 25);
+      } else {
+        textSize(40); fill(255, 50, 50); text("ゲームオーバー", width/2, height*0.4);
+        fill(100); rect(width/2-100, height*0.75, 200, 50, 10);
+        fill(255); text("タイトルへ", width/2, height*0.75 + 25);
+      }
+    }
+
+    function touchStarted() {
+      // タッチ時に音声コンテキストを初期化＆再開する
+      if (!audioInitialized) {
+        initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        audioInitialized = true;
+      }
+
+      if (gameState === "TITLE") {
+        if (mouseX > width/2 - 100 && mouseX < width/2 + 100) {
+          if (mouseY > height/2 + 40 - 30 && mouseY < height/2 + 40 + 30) difficulty = "EASY";
+          else if (mouseY > height/2 + 110 - 30 && mouseY < height/2 + 110 + 30) difficulty = "NORMAL";
+          else if (mouseY > height/2 + 180 - 30 && mouseY < height/2 + 180 + 30) difficulty = "HARD";
+          else return;
+          gameState = "PLAY"; currentLevel = 1; prepareLevelData(); loop();
+        }
+      } else if (gameState === "PLAY") {
+        // ツール切り替えボタン判定
+        if (mouseY > 70 && mouseY < 100) {
+          if (mouseX > 20 && mouseX < 100) { toolMode = "BLOCK"; return; }
+          if (mouseX > 110 && mouseX < 190) { toolMode = "TREE"; return; }
+        }
+        if (mouseX > width - 110 && mouseX < width - 20 && mouseY > 15 && mouseY < 50) {
+          gameState = "TITLE"; loop(); return;
+        }
+        
+        if (millis() - lastWallTime > wallDelay) {
+          if (toolMode === "BLOCK") {
+            walls.push({x: mouseX, y: mouseY}); playSound(800, 'sine', 0.05);
+          } else {
+            let gx = floor(mouseX / resolution), gy = floor(mouseY / resolution);
+            if (land[gx] && land[gx][gy] > 30) {
+              trees.push({gx, gy}); playSound(400, 'sine', 0.05);
+            }
+          }
+          lastWallTime = millis();
+        }
+      } else {
+        if (mouseX > width/2-100 && mouseX < width/2+100 && mouseY > height*0.7) {
+          if (gameState === "REPORT") { currentLevel++; prepareLevelData(); gameState = "PLAY"; loop(); }
+          else { gameState = "TITLE"; prepareLevelData(); loop(); }
+        }
+      }
+      return false; // デフォルトのタッチ動作を無効化
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      cols = floor(width / resolution);
+      rows = floor(height / resolution);
+      if(gameState === "PLAY"){
+          // 画面リサイズ時に地形データがおかしくなるのを防ぐための簡易処理
+          prepareLevelData();
+      }
+    }
+
+    class Water {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.vx = random(-0.5, 0.5);
+        let rType = getRiverType();
+        let baseSpeed = rType === "上流" ? 5 : (rType === "中流" ? 3.5 : 2.5);
+        this.vy = baseSpeed * diffSettings[difficulty].speedMult;
+        if (rainMode) this.vy *= 1.5;
+      }
+      update() { this.x += this.vx; this.y += this.vy; this.vy += 0.05; }
+      display() {
+        let speed = this.vy;
+        // 浸食パワー(stats.erosion)が高いほど、水の色を茶色く濁らせる
+        let mud = constrain(stats.erosion / 100, 0, 150);
+        fill(60 + mud, 120, 255 - mud, 200);
+        noStroke(); circle(this.x, this.y, rainMode ? 14 : 10);
+      }
+    }
+
+    class Sediment {
+      constructor(x, y) { this.x = x; this.y = y; this.vx = random(-1, 1); this.vy = random(1, 3); }
+    }
+  </script>
+</body>
+</html>
