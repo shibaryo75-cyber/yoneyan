@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>月の満ち欠け 学習パッケージ（シミュレーター＆並べ替え）</title>
+    <!-- 描画用ライブラリ（p5.js）の読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    <style>
+        /* ====== 共通スタイル ====== */
+        :root {
+            --bg-color: #0b1120;
+            --panel-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #facc15;
+            --correct-color: #4ade80;
+            --incorrect-color: #f87171;
+            --highlight-color: #3b82f6;
+        }
+
+        body {
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded M+ 1c', 'Meiryo', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            text-align: center;
+            margin: 0;
+            padding: 10px 10px 40px 10px;
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0b1120 100%);
+            min-height: 100vh;
+        }
+
+        h1 { font-size: 22px; margin-bottom: 10px; color: var(--accent-color); text-shadow: 0 0 10px rgba(250, 204, 21, 0.5); }
+        p.instruction { font-size: 14px; color: #cbd5e1; margin-top: 0; margin-bottom: 15px; line-height: 1.5; }
+        
+        button {
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #334155;
+            color: white;
+            transition: all 0.2s;
+            padding: 8px 12px;
+        }
+        button:hover { background: #475569; }
+
+        /* ====== タブ切り替えスタイル ====== */
+        .tab-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            background-color: #1e293b;
+            color: #94a3b8;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 8px 8px 0 0;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-btn.active {
+            background-color: #0b1120;
+            color: var(--accent-color);
+            border-bottom: 3px solid var(--accent-color);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* ====== ① シミュレーター用スタイル ====== */
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 800px; margin: 0 auto 15px auto; }
+        .play-controls { gap: 15px; margin-bottom: 20px; }
+        
+        .btn-start { background: #10b981; font-weight: bold; font-size: 16px; padding: 10px 24px; border-radius: 50px;}
+        .btn-start:hover { background: #059669; }
+        .btn-start.active { background: #047857; box-shadow: 0 0 10px #10b981; border: 2px solid #fff; }
+        
+        .btn-pause { background: #f59e0b; font-weight: bold; font-size: 16px; padding: 10px 24px; border-radius: 50px;}
+        .btn-pause:hover { background: #d97706; }
+        
+        .btn-reset { background: #ef4444; font-weight: bold; font-size: 16px; padding: 10px 24px; border-radius: 50px;}
+        .btn-reset:hover { background: #dc2626; }
+        
+        .slider-container { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; margin: 15px 0; }
+        .slider-container input[type=range] { width: 70%; max-width: 500px; cursor: pointer; accent-color: var(--accent-color); }
+        .info-panel { background: #1e293b; border-radius: 8px; padding: 10px 20px; display: inline-block; margin-bottom: 10px; min-width: 300px; border: 1px solid #334155; }
+        .phase-display { font-size: 28px; font-weight: bold; color: #fde047; margin: 5px 0; }
+        .age-display { font-size: 16px; color: #94a3b8; }
+        #canvas-container { margin: 15px auto; }
+
+        /* ====== ② 並べ替えゲーム用スタイル ====== */
+        #viewer-container {
+            width: 100%; max-width: 450px; margin: 0 auto 15px auto;
+            background-color: #000; border: 4px solid #334155; border-radius: 12px;
+            aspect-ratio: 4 / 3; display: flex; justify-content: center; align-items: center;
+            position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #viewerImage { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #viewerFallback { display: none; flex-direction: column; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 20px; font-weight: bold; color: #fff; text-align: center; background-color: #1e293b; }
+        #viewerLabel { position: absolute; bottom: 15px; right: 15px; background-color: rgba(0, 0, 0, 0.7); color: white; padding: 6px 12px; border-radius: 6px; font-size: 16px; font-weight: bold; }
+        
+        .speed-control { display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; color: #e2e8f0; font-size: 14px; font-weight: bold; }
+        .speed-control input[type=range] { width: 100px; }
+
+        #game-board { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 900px; margin: 0 auto 20px auto; }
+        .slot-container { display: flex; flex-direction: column; align-items: center; }
+        .slot-number { font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #94a3b8; }
+        .slot { width: 80px; height: 80px; background-color: var(--panel-bg); border: 3px dashed #475569; border-radius: 10px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s ease; position: relative; }
+        .slot.selected { border-style: solid; border-color: var(--accent-color); transform: scale(1.1); box-shadow: 0 0 15px rgba(250, 204, 21, 0.6); z-index: 10; }
+        .slot.playing-highlight { border-style: solid; border-color: var(--highlight-color); box-shadow: 0 0 15px rgba(59, 130, 246, 0.8); transform: scale(1.05); }
+        .slot.correct { border-style: solid; border-color: var(--correct-color); background-color: rgba(74, 222, 128, 0.15); }
+        .slot.incorrect { border-style: solid; border-color: var(--incorrect-color); background-color: rgba(248, 113, 113, 0.15); animation: shake 0.4s ease-in-out; }
+        .moon-img { width: 70px; height: 70px; object-fit: cover; border-radius: 50%; pointer-events: none; }
+        .fallback-moon { font-size: 11px; font-weight: bold; color: #fff; background-color: #334155; width: 90%; height: 90%; border-radius: 50%; display: flex; justify-content: center; align-items: center; text-align: center; padding: 3px; box-sizing: border-box; pointer-events: none; }
+        
+        .btn-check { background-color: var(--accent-color); color: #000; font-size: 18px; padding: 12px 35px; margin: 0 auto; font-weight: bold; border-radius: 50px;}
+        .btn-check:hover { box-shadow: 0 6px 12px rgba(250, 204, 21, 0.4); }
+        #message { margin-top: 15px; font-size: 20px; font-weight: bold; min-height: 30px; }
+
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+        .confetti { position: fixed; top: -10px; width: 10px; height: 10px; z-index: 999; animation: fall linear forwards; }
+        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
+    </style>
+</head>
+<body>
+
+    <h1>月の満ち欠け 学習アプリ</h1>
+    
+    <!-- ====== タブ切り替えボタン ====== -->
+    <div class="tab-container">
+        <button id="btn-sim" class="tab-btn active" onclick="switchTab('sim-tab')">① 月と太陽の動きを見る</button>
+        <button id="btn-game" class="tab-btn" onclick="switchTab('game-tab')">② 月の形を並べ替える</button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- タブ①：シミュレーター（地球目線） -->
+    <!-- ========================================== -->
+    <div id="sim-tab" class="tab-content active">
+        <p class="instruction">太陽からどれくらい離れると、どんな形に見えるかな？自動再生で観察してみよう。</p>
+
+        <div class="info-panel">
+            <div id="sim-phase-display" class="phase-display">新月</div>
+            <div id="sim-age-display" class="age-display">月齢: 0.0</div>
+        </div>
+
+        <div class="controls play-controls">
+            <button id="sim-playBtn" class="btn-start" onclick="simStartPlay()">▶ 再生</button>
+            <button id="sim-pauseBtn" class="btn-pause" onclick="simPausePlay()">⏸ 一時停止</button>
+            <button id="sim-resetBtn" class="btn-reset" onclick="simResetPlay()">■ 最初から</button>
+        </div>
+
+        <div class="controls">
+            <button onclick="simSetAge(0)">新月</button>
+            <button onclick="simSetAge(3.7)">三日月</button>
+            <button onclick="simSetAge(7.4)">上弦の月</button>
+            <button onclick="simSetAge(11.1)">満月に近づいた月</button>
+            <button onclick="simSetAge(14.8)">満月</button>
+            <button onclick="simSetAge(18.5)">満月から少し欠けた月</button>
+            <button onclick="simSetAge(22.1)">下弦の月</button>
+            <button onclick="simSetAge(25.8)">反対の三日月</button>
+        </div>
+
+        <div class="slider-container">
+            <span style="font-size: 14px;">太陽と同じ方向</span>
+            <input type="range" id="sim-ageSlider" min="0" max="29.53" step="0.1" value="0">
+            <span style="font-size: 14px;">約1ヶ月で1周</span>
+        </div>
+
+        <div id="canvas-container"></div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- タブ②：並べ替えゲーム＆スライドショー -->
+    <!-- ========================================== -->
+    <div id="game-tab" class="tab-content">
+        <p class="instruction">
+            下のパネルを２つタップして入れ替え、新月（1番目）から順番に並べよう。<br>
+            並べた順番でスライドショーを再生できるよ！おかしな動きを直して「こたえあわせ」しよう。
+        </p>
+
+        <div id="viewer-container">
+            <img id="viewerImage" src="" alt="月の画像">
+            <div id="viewerFallback">画像がありません<br><span style="font-size:12px;font-weight:normal;">(画像なし)</span></div>
+            <div id="viewerLabel"></div>
+        </div>
+
+        <div class="controls play-controls" style="margin-bottom: 25px;">
+            <button id="game-playPauseBtn" class="btn-start" onclick="gameTogglePlay()">▶ 再生 / 一時停止</button>
+            <button class="btn-reset" onclick="gameStopSlideshow()">■ 停止</button>
+            
+            <div class="speed-control">
+                <span>🐢</span>
+                <input type="range" id="game-speedSlider" min="1" max="10" value="6" title="再生スピード">
+                <span>🐇</span>
+            </div>
+        </div>
+
+        <div id="game-board"></div>
+
+        <div>
+            <button class="btn-check" onclick="gameCheckAnswer()">こたえあわせ</button>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- スクリプト統合部分 -->
+    <!-- ========================================== -->
+    <script>
+        // --- タブ切り替えロジック ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            if(tabId === 'sim-tab') {
+                document.getElementById('btn-sim').classList.add('active');
+            } else {
+                document.getElementById('btn-game').classList.add('active');
+            }
+        }
+
+        // ==========================================
+        // ① p5.js シミュレーターのロジック
+        // ==========================================
+        let simAgeSlider, simPhaseDisplay, simAgeDisplay, simPlayBtn;
+        const MOON_CYCLE = 29.53;
+        let simIsPlaying = false;
+        const simPlaySpeed = 0.06;
+
+        function setup() {
+            let canvas = createCanvas(800, 350);
+            canvas.parent('canvas-container');
+            
+            simAgeSlider = document.getElementById('sim-ageSlider');
+            simPhaseDisplay = document.getElementById('sim-phase-display');
+            simAgeDisplay = document.getElementById('sim-age-display');
+            simPlayBtn = document.getElementById('sim-playBtn');
+            
+            simAgeSlider.addEventListener('input', () => {
+                simPausePlay();
+                simUpdateInfo();
+            });
+            simUpdateInfo();
+        }
+
+        function draw() {
+            // タブが隠れていてもp5.jsの描画ループは裏で実行される
+            background(15, 23, 42);
+
+            if (simIsPlaying) {
+                let currentAge = parseFloat(simAgeSlider.value);
+                currentAge += simPlaySpeed;
+                if (currentAge >= MOON_CYCLE) currentAge = 0;
+                simAgeSlider.value = currentAge;
+                simUpdateInfo();
+            }
+
+            let age = parseFloat(simAgeSlider.value);
+            let sunX = width / 2;
+            let sunY = height / 2 - 20;
+
+            let offset = map(age, 0, MOON_CYCLE, 0, width);
+            let moonX = (width / 2 - offset + width) % width;
+            let moonY = height / 2 - 20;
+
+            stroke(255, 255, 255, 40);
+            strokeWeight(2);
+            drawingContext.setLineDash([5, 5]);
+            line(sunX, sunY, moonX, moonY);
+            if (age > MOON_CYCLE / 2) {
+                line(sunX, sunY, moonX - width, moonY);
+                line(sunX, sunY, moonX + width, moonY);
+            }
+            drawingContext.setLineDash([]);
+
+            noStroke();
+            fill(255, 200, 0, 50);
+            ellipse(sunX, sunY, 110, 110);
+            fill(255, 240, 150);
+            ellipse(sunX, sunY, 70, 70);
+
+            drawMoonPhase(moonX, moonY, 70, age);
+            
+            fill(255);
+            noStroke();
+            textSize(16);
+            textAlign(CENTER);
+            text("太陽", sunX, sunY - 55);
+            text("月", moonX, moonY - 55);
+
+            fill(20, 40, 25);
+            rect(0, height - 40, width, 40);
+            fill(150, 180, 150);
+            textSize(14);
+            textAlign(LEFT);
+            text("▲ わたしたちのいる地上（地球）からのながめ", 10, height - 15);
+        }
+
+        function drawMoonPhase(x, y, size, age) {
+            push();
+            translate(x, y);
+            noStroke();
+            fill(30, 35, 50); 
+            ellipse(0, 0, size, size);
+            fill(255, 255, 210);
+            
+            if (age === 0 || age >= MOON_CYCLE) {
+            } else if (age < 14.76) {
+                arc(0, 0, size, size, -PI/2, PI/2); 
+                if (age < 7.38) {
+                    fill(30, 35, 50);
+                    let w = map(age, 0, 7.38, size, 0);
+                    ellipse(0, 0, w, size);
+                } else {
+                    let w = map(age, 7.38, 14.76, 0, size);
+                    ellipse(0, 0, w, size);
+                }
+            } else {
+                arc(0, 0, size, size, PI/2, -PI/2); 
+                if (age < 22.15) {
+                    let w = map(age, 14.76, 22.15, size, 0);
+                    ellipse(0, 0, w, size);
+                } else {
+                    fill(30, 35, 50);
+                    let w = map(age, 22.15, MOON_CYCLE, 0, size);
+                    ellipse(0, 0, w, size);
+                }
+            }
+            stroke(255, 255, 255, 20);
+            strokeWeight(1);
+            noFill();
+            ellipse(0, 0, size, size);
+            pop();
+        }
+
+        function simStartPlay() {
+            simIsPlaying = true;
+            simPlayBtn.classList.add('active');
+            simPlayBtn.innerText = "▶ 再生中...";
+        }
+        function simPausePlay() {
+            simIsPlaying = false;
+            simPlayBtn.classList.remove('active');
+            simPlayBtn.innerText = "▶ 再生";
+        }
+        function simResetPlay() {
+            simPausePlay();
+            simAgeSlider.value = 0;
+            simUpdateInfo();
+        }
+        function simSetAge(val) {
+            simPausePlay();
+            simAgeSlider.value = val;
+            simUpdateInfo();
+        }
+        function simUpdateInfo() {
+            let age = parseFloat(simAgeSlider.value);
+            let name = "";
+            if (age < 1.5) name = "新月";
+            else if (age < 6) name = "三日月";
+            else if (age < 9) name = "上弦の月（半月）";
+            else if (age < 13.5) name = "満月に近づいた月";
+            else if (age < 16) name = "満月";
+            else if (age < 20) name = "満月から少し欠けた月";
+            else if (age < 24) name = "下弦の月（半月）";
+            else if (age < 28) name = "反対の三日月";
+            else name = "新月";
+
+            simPhaseDisplay.innerText = name;
+            simAgeDisplay.innerText = "月齢: " + age.toFixed(1) + " （約" + Math.round(age) + "日後）";
+        }
+
+        // ==========================================
+        // ② 並べ替えゲーム＆スライドショーのロジック
+        // ==========================================
+        const moonsData = [
+            { id: 1, src: "moon1.png", label: "新月 (0)" },
+            { id: 2, src: "moon2.png", label: "右から満ちて" },
+            { id: 3, src: "moon3.png", label: "上弦の月 (7)" },
+            { id: 4, src: "moon4.png", label: "右から満ちて" },
+            { id: 5, src: "moon5.png", label: "満月 (15)" },
+            { id: 6, src: "moon6.png", label: "右から欠ける" },
+            { id: 7, src: "moon7.png", label: "下弦の月 (22)" },
+            { id: 8, src: "moon8.png", label: "右から欠ける" },
+            { id: 9, src: "moon9.png", label: "新月 (30)" }
+        ];
+
+        let gameCurrentOrder = [];
+        let gameSelectedIndex = null;
+        let gameSlideIndex = 0;
+        let gameIsPlaying = false;
+        let gameSlideTimeout;
+
+        // ページ読み込み完了時にゲームを初期化
+        document.addEventListener("DOMContentLoaded", () => {
+            gameInit();
+            
+            const viewerImage = document.getElementById('viewerImage');
+            const viewerFallback = document.getElementById('viewerFallback');
+            
+            viewerImage.onerror = function() {
+                viewerImage.style.display = 'none';
+                viewerFallback.style.display = 'flex';
+                viewerFallback.innerHTML = gameCurrentOrder[gameSlideIndex].label + "<br><span style='font-size:14px;font-weight:normal;'>(画像なし)</span>";
+            };
+            viewerImage.onload = function() {
+                viewerImage.style.display = 'block';
+                viewerFallback.style.display = 'none';
+            };
+            
+            document.getElementById('game-speedSlider').addEventListener('input', () => {
+                if (gameIsPlaying) {
+                    clearTimeout(gameSlideTimeout);
+                    gameAdvanceSlide();
+                }
+            });
+        });
+
+        function gameInit() {
+            gameCurrentOrder = [...moonsData].sort(() => Math.random() - 0.5);
+            gameSlideIndex = 0;
+            gameRenderBoard();
+            gameUpdateViewer();
+        }
+
+        function gameRenderBoard() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+            
+            gameCurrentOrder.forEach((moon, index) => {
+                const container = document.createElement('div');
+                container.className = 'slot-container';
+
+                const numberLabel = document.createElement('div');
+                numberLabel.className = 'slot-number';
+                numberLabel.textContent = `${index + 1}番目`;
+                
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                if (gameSelectedIndex === index) slot.classList.add('selected');
+                if (gameIsPlaying && gameSlideIndex === index) slot.classList.add('playing-highlight');
+
+                slot.onclick = () => gameHandleSlotClick(index);
+
+                const imgStr = `
+                    <img src="${moon.src}" alt="${moon.label}" class="moon-img" 
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="fallback-moon" style="display:none;">${moon.label}</div>
+                `;
+                slot.innerHTML = imgStr;
+
+                container.appendChild(numberLabel);
+                container.appendChild(slot);
+                board.appendChild(container);
+            });
+        }
+
+        function gameHandleSlotClick(index) {
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('correct', 'incorrect'));
+            document.getElementById('message').textContent = '';
+
+            if (gameSelectedIndex === null) {
+                gameSelectedIndex = index;
+            } else {
+                if (gameSelectedIndex !== index) {
+                    const temp = gameCurrentOrder[gameSelectedIndex];
+                    gameCurrentOrder[gameSelectedIndex] = gameCurrentOrder[index];
+                    gameCurrentOrder[index] = temp;
+                }
+                gameSelectedIndex = null;
+            }
+            gameRenderBoard();
+            gameUpdateViewer();
+        }
+
+        function gameUpdateViewer() {
+            const moon = gameCurrentOrder[gameSlideIndex];
+            const viewerImage = document.getElementById('viewerImage');
+            viewerImage.src = moon.src; 
+            document.getElementById('viewerLabel').textContent = moon.label;
+            
+            document.querySelectorAll('.slot').forEach((s, idx) => {
+                if (idx === gameSlideIndex) s.classList.add('playing-highlight');
+                else s.classList.remove('playing-highlight');
+            });
+        }
+
+        function gameTogglePlay() {
+            if (gameIsPlaying) gamePauseSlideshow();
+            else gamePlaySlideshow();
+        }
+
+        function gamePlaySlideshow() {
+            gameIsPlaying = true;
+            const btn = document.getElementById('game-playPauseBtn');
+            btn.innerHTML = "⏸ 一時停止";
+            btn.style.backgroundColor = "#f59e0b"; // 警告色
+            gameAdvanceSlide();
+        }
+
+        function gamePauseSlideshow() {
+            gameIsPlaying = false;
+            clearTimeout(gameSlideTimeout);
+            const btn = document.getElementById('game-playPauseBtn');
+            btn.innerHTML = "▶ 再生";
+            btn.style.backgroundColor = "#10b981"; // 緑色
+        }
+
+        function gameStopSlideshow() {
+            gamePauseSlideshow();
+            gameSlideIndex = 0;
+            gameUpdateViewer();
+        }
+
+        function gameAdvanceSlide() {
+            if (!gameIsPlaying) return;
+            gameSlideIndex++;
+            if (gameSlideIndex >= gameCurrentOrder.length) gameSlideIndex = 0;
+            
+            gameUpdateViewer();
+            
+            const speedVal = parseInt(document.getElementById('game-speedSlider').value);
+            const delay = 1500 - (speedVal - 1) * 150; 
+            
+            gameSlideTimeout = setTimeout(gameAdvanceSlide, delay);
+        }
+
+        function gameCheckAnswer() {
+            let allCorrect = true;
+            const slots = document.querySelectorAll('.slot');
+            
+            gameCurrentOrder.forEach((moon, index) => {
+                if (moon.id === index + 1) {
+                    slots[index].classList.add('correct');
+                    slots[index].classList.remove('incorrect');
+                } else {
+                    slots[index].classList.add('incorrect');
+                    slots[index].classList.remove('correct');
+                    allCorrect = false;
+                }
+            });
+
+            const msgEl = document.getElementById('message');
+            if (allCorrect) {
+                msgEl.innerHTML = "🌟 大正解！月の満ち欠けをマスターしたね！ 🌟";
+                msgEl.style.color = "var(--correct-color)";
+                gameShootConfetti();
+                
+                // 正解したらお祝いとして自動再生を開始
+                if (!gameIsPlaying) {
+                    gameSlideIndex = -1;
+                    gamePlaySlideshow();
+                }
+            } else {
+                msgEl.innerHTML = "おしい！ 赤い枠の月は順番が違うよ。<br>スライドショーで動きを確認してみてね。";
+                msgEl.style.color = "var(--incorrect-color)";
+            }
+        }
+
+        function gameShootConfetti() {
+            const colors = ['#facc15', '#4ade80', '#60a5fa', '#f472b6', '#ffffff'];
+            for(let i = 0; i < 60; i++) {
+                let conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = (Math.random() * 100) + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                conf.style.animationDelay = (Math.random() * 0.5) + 's';
+                document.body.appendChild(conf);
+                setTimeout(() => conf.remove(), 4000);
+            }
+        }
+    </script>
+</body>
+</html>
