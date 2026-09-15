@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5年生理科：花から実へ（対照実験）</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body { 
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; 
+      text-align: center; 
+      background-color: #f0f8ff; 
+      margin: 0; 
+      padding: 10px; 
+    }
+    #canvas-container { 
+      margin: 10px auto; 
+      display: flex; 
+      justify-content: center; 
+    }
+    .btn { 
+      padding: 10px 18px; 
+      font-size: 15px; 
+      font-weight: bold;
+      margin: 5px; 
+      cursor: pointer; 
+      border-radius: 30px; 
+      border: none; 
+      color: white; 
+      transition: 0.1s; 
+    }
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow: none !important;
+    }
+    .btn:disabled { 
+      background-color: #cccccc !important; 
+      box-shadow: 0 4px 0 #999999 !important;
+      cursor: not-allowed; 
+      transform: translateY(0);
+    }
+    /* ボタンごとの色設定 */
+    .btn-step1-a { background-color: #e91e63; box-shadow: 0 4px 0 #c2185b; }
+    .btn-step1-b { background-color: #9c27b0; box-shadow: 0 4px 0 #7b1fa2; }
+    .btn-step2 { background-color: #4CAF50; box-shadow: 0 4px 0 #2E7D32; }
+    .btn-reset { background-color: #f44336; box-shadow: 0 4px 0 #d32f2f; }
+    .btn-play { background-color: #2196F3; box-shadow: 0 4px 0 #1565C0; }
+    .btn-pause { background-color: #ff9800; box-shadow: 0 4px 0 #e65100; }
+
+    #explanation { 
+      font-size: 18px; 
+      font-weight: bold; 
+      margin: 15px 0; 
+      color: #333; 
+      height: 30px; 
+    }
+    .controls-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 10px;
+      background-color: #e6f2ff;
+      border-radius: 10px;
+      max-width: 750px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .control-label {
+      width: 100%;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: -5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌸 花から実へ シミュレーター 🍎</h1>
+  <div id="explanation">条件を選んで、実ができるかどうか確かめよう！</div>
+  
+  <!-- 操作パネル -->
+  <div class="controls-group">
+    <div class="control-label">【ステップ１：条件を選ぶ】</div>
+    <button id="btn-pollinate" class="btn btn-step1-a" onclick="doPollinate()">🌸 花粉をつける(受粉する)</button>
+    <button id="btn-no-pollinate" class="btn btn-step1-b" onclick="skipPollinate()">🛍 袋をかぶせる(受粉させない)</button>
+  </div>
+
+  <div class="controls-group" style="background-color: #e8f5e9;">
+    <div class="control-label">【ステップ２：その後の変化を観察】</div>
+    <button id="btn-grow" class="btn btn-step2" onclick="startGrowing()" disabled>⏳ 時間を進める(数日後…)</button>
+    <button id="btn-reset" class="btn btn-reset" onclick="resetSim()">はじめから</button>
+  </div>
+
+  <div class="controls-group" style="background-color: #fff3e0;">
+    <div class="control-label">【アニメーション操作】</div>
+    <button id="btn-start" class="btn btn-play" onclick="resumeSim()" disabled>▶ スタート</button>
+    <button id="btn-stop" class="btn btn-pause" onclick="pauseSim()">⏸ 停止</button>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    let state = 0; // 0:初期, 1:受粉アニメ中, 2:条件選択済, 3:時間経過中, 4:結果
+    let isPollinated = null; // true:受粉した, false:受粉させなかった
+    let pollenParticles = [];
+    let growProgress = 0;
+    let isPaused = false;
+
+    function setup() {
+      let canvas = createCanvas(600, 480);
+      canvas.parent('canvas-container');
+    }
+
+    function draw() {
+      background(230, 245, 255);
+      translate(width / 2, height / 2 + 100); 
+
+      // --- 状態による変数の変化 ---
+      let petalSize = 1;
+      let ovarySize = 1;
+      let seedColor = color(200, 255, 200);
+      let fadeOut = 1; // 枯れるときの透明度
+
+      if (state === 3) {
+        growProgress += 0.005; // アニメーション速度
+        petalSize = map(growProgress, 0, 1, 1, 0); 
+        
+        if (isPollinated) {
+          // 受粉した場合：子房がふくらみ、種子ができる
+          ovarySize = map(growProgress, 0, 1, 1, 3); 
+          seedColor = lerpColor(color(200, 255, 200), color(50, 20, 10), growProgress); 
+        } else {
+          // 受粉しなかった場合：子房はふくらまず、全体が枯れて縮んでいく
+          ovarySize = map(growProgress, 0, 1, 1, 0); 
+          fadeOut = map(growProgress, 0, 1, 1, 0);
+        }
+
+        if (growProgress >= 1) {
+          state = 4;
+          if (isPollinated) {
+            document.getElementById("explanation").innerText = "受粉したので、めしべの根元（子房）が「実」になりました！";
+          } else {
+            document.getElementById("explanation").innerText = "受粉しなかったので、実はできずに枯れ落ちてしまいました。";
+          }
+        }
+      } else if (state === 4) {
+        petalSize = 0;
+        if (isPollinated) {
+          ovarySize = 3;
+          seedColor = color(50, 20, 10);
+        } else {
+          ovarySize = 0;
+          fadeOut = 0;
+        }
+      }
+
+      // --- 描画開始 ---
+      push();
+      // 受粉しなかった場合は全体が消えていく
+      if (isPollinated === false && state >= 3) {
+        scale(fadeOut);
+      }
+
+      // --- 描画: がく ---
+      fill(50, 150, 50);
+      noStroke();
+      triangle(-30 * ovarySize, 0, 30 * ovarySize, 0, 0, 50 * ovarySize);
+      triangle(-30 * ovarySize, 0, -60 * ovarySize, -40 * petalSize, -10, 20);
+      triangle(30 * ovarySize, 0, 60 * ovarySize, -40 * petalSize, 10, 20);
+
+      // --- 描画: 花びら ---
+      if (petalSize > 0) {
+        fill(255, 182, 193, 220 * petalSize); 
+        stroke(255, 105, 180, 220 * petalSize);
+        strokeWeight(2);
+        for (let i = 0; i < 5; i++) {
+          push();
+          rotate(radians(i * 72 - 90) * petalSize + radians(90) * (1 - petalSize));
+          ellipse(0, -100 * petalSize, 80 * petalSize, 150 * petalSize);
+          pop();
+        }
+      }
+
+      // --- 描画: おしべ ---
+      if (petalSize > 0) {
+        stroke(150, 255, 150, 255 * petalSize);
+        strokeWeight(3);
+        fill(255, 215, 0, 255 * petalSize);
+        line(-20, 0, -60, -120 * petalSize);
+        ellipse(-60, -120 * petalSize, 15 * petalSize, 20 * petalSize);
+        line(-10, 0, -30, -140 * petalSize);
+        ellipse(-30, -140 * petalSize, 15 * petalSize, 20 * petalSize);
+        line(20, 0, 60, -120 * petalSize);
+        ellipse(60, -120 * petalSize, 15 * petalSize, 20 * petalSize);
+        line(10, 0, 30, -140 * petalSize);
+        ellipse(30, -140 * petalSize, 15 * petalSize, 20 * petalSize);
+      }
+
+      // --- 描画: めしべ & 子房 ---
+      if (ovarySize > 0) {
+        fill(144, 238, 144);
+        if (state >= 3 && isPollinated) fill(255, 99, 71); // 赤く熟す
+        stroke(34, 139, 34);
+        strokeWeight(2);
+        ellipse(0, -20 * ovarySize, 50 * ovarySize, 50 * ovarySize);
+        
+        // はいしゅ
+        fill(seedColor);
+        noStroke();
+        ellipse(-10 * ovarySize, -20 * ovarySize, 10 * ovarySize, 15 * ovarySize);
+        ellipse(10 * ovarySize, -20 * ovarySize, 10 * ovarySize, 15 * ovarySize);
+        ellipse(0, -10 * ovarySize, 10 * ovarySize, 15 * ovarySize);
+        ellipse(0, -30 * ovarySize, 10 * ovarySize, 15 * ovarySize);
+      }
+
+      // 柱頭と花柱
+      if (petalSize > 0) {
+        fill(144, 238, 144, 255 * petalSize);
+        stroke(34, 139, 34, 255 * petalSize);
+        strokeWeight(2);
+        beginShape();
+        vertex(-10, -40);
+        vertex(-5, -160 * petalSize);
+        vertex(5, -160 * petalSize);
+        vertex(10, -40);
+        endShape(CLOSE);
+        ellipse(0, -160 * petalSize, 30 * petalSize, 15 * petalSize);
+      }
+
+      // --- 袋の描画（受粉させない場合） ---
+      if (isPollinated === false && state >= 2 && state <= 3) {
+        fill(255, 255, 255, 120); // 半透明の白い袋
+        stroke(200);
+        strokeWeight(2);
+        rect(-100, -210, 200, 240, 20); // 角丸の四角形
+      }
+
+      pop(); // 描画の拡大縮小リセット
+
+      // --- ラベルの表示 ---
+      fill(0);
+      noStroke();
+      textSize(16);
+      textAlign(CENTER);
+      if (state === 0 || state === 1 || (state === 2 && isPollinated)) {
+        text("花びら", -120, -150);
+        text("おしべ", 90, -130);
+        text("めしべ", 0, -185);
+        text("子房(しぼう)", -80, -20);
+        text("はいしゅ", 70, -20);
+      } else if (state === 2 && !isPollinated) {
+        text("花粉がつかないように\n袋をかぶせました", 0, -240);
+      } else if (state === 4 && isPollinated) {
+        textSize(22);
+        text("実 (もとは子房)", -100 * 1.5, -40 * 1.5);
+        text("種子 (もとははいしゅ)", 100 * 1.5, -40 * 1.5);
+      } else if (state === 4 && !isPollinated) {
+        textSize(22);
+        text("めしべは枯れて落ち、\n実はできませんでした", 0, -50);
+      }
+
+      // --- 受粉アニメーション ---
+      if (state === 1) {
+        fill(255, 215, 0); 
+        noStroke();
+        let allReached = true;
+        for (let i = 0; i < pollenParticles.length; i++) {
+          let p = pollenParticles[i];
+          ellipse(p.x, p.y, 8, 8);
+          
+          let targetX = 0 + random(-10, 10);
+          let targetY = -160 + random(-5, 5);
+          
+          p.x += (targetX - p.x) * 0.05;
+          p.y += (targetY - p.y) * 0.05;
+
+          if (dist(p.x, p.y, 0, -160) > 15) {
+            allReached = false;
+          }
+        }
+        if (allReached) {
+          state = 2;
+          document.getElementById("btn-grow").disabled = false;
+          document.getElementById("explanation").innerText = "めしべの先に花粉がつきました（受粉完了）。";
+        }
+      }
+      
+      // 花粉を柱頭に残す（受粉した場合）
+      if ((state === 2 && isPollinated) || (state === 3 && isPollinated && petalSize > 0.5)) {
+         fill(255, 215, 0);
+         noStroke();
+         for(let i=0; i<pollenParticles.length; i++) {
+             ellipse(pollenParticles[i].x, pollenParticles[i].y, 8, 8);
+         }
+      }
+      
+      // ポーズ状態の画面表示
+      if (isPaused) {
+        fill(0, 0, 0, 100);
+        rect(-width/2, -height/2 - 100, width, height);
+        fill(255);
+        textSize(32);
+        textAlign(CENTER, CENTER);
+        text("一時停止中", 0, -100);
+      }
+    }
+
+    // --- コントロール関数 ---
+    function doPollinate() {
+      if (state === 0) {
+        state = 1;
+        isPollinated = true;
+        for (let i = 0; i < 15; i++) {
+          pollenParticles.push({x: -60 + random(-5, 5), y: -120 + random(-5, 5)});
+          pollenParticles.push({x: 60 + random(-5, 5), y: -120 + random(-5, 5)});
+        }
+        document.getElementById("explanation").innerText = "虫や風が、おしべの花粉をめしべに運んでいます...";
+        disableStep1();
+      }
+    }
+
+    function skipPollinate() {
+      if (state === 0) {
+        state = 2;
+        isPollinated = false;
+        document.getElementById("explanation").innerText = "花に袋をかぶせ、花粉がつかないようにしました。";
+        disableStep1();
+        document.getElementById("btn-grow").disabled = false;
+      }
+    }
+
+    function disableStep1() {
+      document.getElementById("btn-pollinate").disabled = true;
+      document.getElementById("btn-no-pollinate").disabled = true;
+    }
+
+    function startGrowing() {
+      if (state === 2) {
+        state = 3;
+        if (isPollinated) {
+          document.getElementById("explanation").innerText = "花が落ちて、めしべの根元（子房）がふくらんできました。";
+        } else {
+          document.getElementById("explanation").innerText = "花が落ちて、めしべの根元もだんだん枯れてきました。";
+        }
+        document.getElementById("btn-grow").disabled = true;
+      }
+    }
+
+    function resetSim() {
+      state = 0;
+      isPollinated = null;
+      growProgress = 0;
+      pollenParticles = [];
+      document.getElementById("btn-pollinate").disabled = false;
+      document.getElementById("btn-no-pollinate").disabled = false;
+      document.getElementById("btn-grow").disabled = true;
+      document.getElementById("explanation").innerText = "条件を選んで、実ができるかどうか確かめよう！";
+      if (isPaused) resumeSim();
+    }
+
+    // --- アニメーションの一時停止・再開 ---
+    function pauseSim() {
+      isPaused = true;
+      noLoop(); 
+      document.getElementById("btn-start").disabled = false;
+      document.getElementById("btn-stop").disabled = true;
+      redraw(); 
+    }
+
+    function resumeSim() {
+      isPaused = false;
+      loop(); 
+      document.getElementById("btn-start").disabled = true;
+      document.getElementById("btn-stop").disabled = false;
+    }
+  </script>
+</body>
+</html>
